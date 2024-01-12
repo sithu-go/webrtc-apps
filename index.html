@@ -55,18 +55,15 @@
     let offerDesc = void 0
     let answerDesc = void 0
 
-    olc = void 1
-    odc = void 2
-
-    arc = void 1
-    // alc = void 2
+    rc = void 1
+    dc = void 2
 
     function start(params) {
-        olc = new RTCPeerConnection()
+        rc = new RTCPeerConnection()
 
-        odc = olc.createDataChannel("channel")
+        dc = rc.createDataChannel("channel")
 
-        odc.onmessage = e => {
+        dc.onmessage = e => {
             console.log("Just got a message " + e.data)
 
             const messageElement = document.createElement("div");
@@ -75,47 +72,52 @@
             messageList.appendChild(messageElement);
         }
 
-        odc.onopen = e => {
+        dc.onopen = e => {
             console.log("Connection opened!")
             connectBox.hidden = true
             messageBox.hidden = false
         }
 
-        olc.onicecandidate = e => {
-            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(olc.localDescription))
+        rc.onicecandidate = e => {
+            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(rc.localDescription))
 
             startBox.hidden = true
             connectBox.hidden = false
 
-            offerDescription.textContent = JSON.stringify(olc.localDescription)
+            offerDescription.textContent = JSON.stringify(rc.localDescription)
 
             connectBtn.textContent = "Join"
         }
 
-        olc.createOffer().then(o => olc.setLocalDescription(o)).then(a => console.log("set successfully!"))
+        rc.createOffer().then(o => rc.setLocalDescription(o)).then(a => console.log("set successfully!"))
     }
 
     function connect() {
 
+        // Foe perr 1
         if (connectBtn.textContent == "Join") {
             answerDesc = JSON.parse(offerTextArea.value)
 
-            olc.setRemoteDescription(answerDesc)
+            rc.setRemoteDescription(answerDesc)
             return
         }
 
+        // For Peer2
         offerDesc = JSON.parse(offerTextArea.value)
         console.log(offerDesc);
 
-        arc = new RTCPeerConnection()
-        arc.onicecandidate = e => {
-            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(arc.localDescription))
-            offerDescription.textContent = JSON.stringify(arc.localDescription)
+        rc = new RTCPeerConnection()
+        rc.onicecandidate = e => {
+            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(rc.localDescription))
+            offerDescription.textContent = JSON.stringify(rc.localDescription)
         }
 
-        arc.ondatachannel = e => {
-            arc.dc = e.channel;
-            arc.dc.onmessage = e => {
+
+        rc.ondatachannel = e => {
+            dc = e.channel;
+
+            rc.dc = e.channel;
+            rc.dc.onmessage = e => {
                 console.log("new message from client! " + e.data)
 
                 const messageElement = document.createElement("div");
@@ -123,15 +125,15 @@
 
                 messageList.appendChild(messageElement);
             }
-            arc.dc.onopen = e => console.log("Connection OPENED!!!!!")
+            rc.dc.onopen = e => console.log("Connection OPENED!!!!!")
 
             connectBox.hidden = true
             messageBox.hidden = false
         }
 
-        arc.setRemoteDescription(offerDesc).then(a => console.log("offer set!"))
+        rc.setRemoteDescription(offerDesc).then(a => console.log("offer set!"))
 
-        arc.createAnswer().then(a => arc.setLocalDescription(a)).then(a => console.log("answer created!"))
+        rc.createAnswer().then(a => rc.setLocalDescription(a)).then(a => console.log("answer created!"))
 
     }
 
@@ -142,10 +144,8 @@
         if (message == "" || !message) {
             return
         }
-        if (olc) {
-            odc.send(message)
-        } else {
-            arc.dc.send(message)
+        if (rc && dc) {
+            dc.send(message)
         }
 
         // Create a new message element
