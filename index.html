@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+    <div id="start-box">
+        <button type="button" id="startBtn">Start</button>
+        <button type="button" id="joinBtn">Join</button>
+    </div>
+
+    <div id="connection-box">
+        <textarea name="localDescription" id="offer-textarea" style="width: 300px; height: 150px;"></textarea>
+        <button type="button" id="connectBtn">Connect</button>
+
+        <br>
+        <p>Copy the line down if appear</p>
+        <div>
+            <button type="button" id="copyButton" onclick="copyOfferDescription()">Copy</button>
+        </div>
+        <span id="offer-description"></span>
+    </div>
+
+    <div id="message-list"></div>
+
+    <form id="message-box">
+        <input type="text" name="message" id="message">
+        <button type="button" id="msgSendBtn" onclick="sendMessage()">Send</button>
+    </form>
+</body>
+<script>
+    const startBox = document.getElementById("start-box")
+    const connectBox = document.getElementById("connection-box")
+    const messageBox = document.getElementById("message-box")
+
+    const startBtn = document.getElementById("startBtn")
+    const joinBtn = document.getElementById("joinBtn")
+    const connectBtn = document.getElementById("connectBtn")
+
+    const msgSendBtn = document.getElementById("msgSendBtn")
+
+    const offerDescription = document.getElementById("offer-description")
+
+    const offerTextArea = document.getElementById("offer-textarea")
+
+    const messageInput = document.getElementById("message")
+
+    // Append the new message to the message list
+    const messageList = document.getElementById("message-list");
+
+    let offerDesc = void 0
+    let answerDesc = void 0
+
+    olc = void 1
+    odc = void 2
+
+    arc = void 1
+    // alc = void 2
+
+    function start(params) {
+        olc = new RTCPeerConnection()
+
+        odc = olc.createDataChannel("channel")
+
+        odc.onmessage = e => {
+            console.log("Just got a message " + e.data)
+
+            const messageElement = document.createElement("div");
+            messageElement.textContent = e.data;
+
+            messageList.appendChild(messageElement);
+        }
+
+        odc.onopen = e => {
+            console.log("Connection opened!")
+            connectBox.hidden = true
+            messageBox.hidden = false
+        }
+
+        olc.onicecandidate = e => {
+            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(olc.localDescription))
+
+            startBox.hidden = true
+            connectBox.hidden = false
+
+            offerDescription.textContent = JSON.stringify(olc.localDescription)
+
+            connectBtn.textContent = "Join"
+        }
+
+        olc.createOffer().then(o => olc.setLocalDescription(o)).then(a => console.log("set successfully!"))
+    }
+
+    function connect() {
+
+        if (connectBtn.textContent == "Join") {
+            answerDesc = JSON.parse(offerTextArea.value)
+
+            olc.setRemoteDescription(answerDesc)
+            return
+        }
+
+        offerDesc = JSON.parse(offerTextArea.value)
+        console.log(offerDesc);
+
+        arc = new RTCPeerConnection()
+        arc.onicecandidate = e => {
+            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(arc.localDescription))
+            offerDescription.textContent = JSON.stringify(arc.localDescription)
+        }
+
+        arc.ondatachannel = e => {
+            arc.dc = e.channel;
+            arc.dc.onmessage = e => {
+                console.log("new message from client! " + e.data)
+
+                const messageElement = document.createElement("div");
+                messageElement.textContent = e.data;
+
+                messageList.appendChild(messageElement);
+            }
+            arc.dc.onopen = e => console.log("Connection OPENED!!!!!")
+
+            connectBox.hidden = true
+            messageBox.hidden = false
+        }
+
+        arc.setRemoteDescription(offerDesc).then(a => console.log("offer set!"))
+
+        arc.createAnswer().then(a => arc.setLocalDescription(a)).then(a => console.log("answer created!"))
+
+    }
+
+    function sendMessage() {
+
+        const message = messageInput.value
+
+        if (message == "" || !message) {
+            return
+        }
+        if (olc) {
+            odc.send(message)
+        } else {
+            arc.dc.send(message)
+        }
+
+        // Create a new message element
+        const messageElement = document.createElement("div");
+        messageElement.textContent = message;
+
+        messageList.appendChild(messageElement);
+
+        messageInput.value = null
+
+    }
+
+    initializeUI()
+    listneEvents()
+    function initializeUI() {
+        startBox.hidden = false
+        connectBox.hidden = true
+        messageBox.hidden = true
+    }
+
+    function listneEvents() {
+        startBtn.addEventListener("click", () => {
+            start()
+        })
+
+        joinBtn.addEventListener("click", () => {
+            startBox.hidden = true
+            connectBox.hidden = false
+            messageBox.hidden = true
+        })
+
+        connectBtn.addEventListener("click", () => {
+            connect()
+            // connectBox.hidden = false
+            // messageBox.hidden = tru
+
+        })
+
+        document.getElementById("message-box").addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                sendMessage(); // Call the function to handle sending messages
+            }
+        });
+    }
+
+    // Function to copy the offer description
+    function copyOfferDescription() {
+
+        // Create a temporary input element
+        var tempInput = document.createElement("input");
+        tempInput.value = offerDescription.textContent;
+
+        // Append the temporary input element to the document
+        document.body.appendChild(tempInput);
+
+        // Select and copy the value from the temporary input
+        tempInput.select();
+        document.execCommand("copy");
+
+        // Remove the temporary input element
+        document.body.removeChild(tempInput);
+
+        // You can add additional logic or feedback as needed
+        alert("Offer description copied!");
+    }
+</script>
+
+</html>
