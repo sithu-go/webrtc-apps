@@ -114,11 +114,10 @@
         //         peer.addTrack(track, stream)
         //     })
         // })
-        createPeer();
-
         userStream.getTracks().forEach((track) => {
             peer.addTrack(track, userStream)
         })
+        createPeer();
     }
 
 
@@ -139,9 +138,6 @@
         peer.createOffer().then(offer => {
             return peer.setLocalDescription(offer);
         }).then(() => {
-            console.log(peer.localDescription, "SS");
-            // offerDescription.textContent = JSON.stringify(peer.localDescription)
-
             connectBtn.textContent = "Join"
         }).catch(e => console.log(e));
     }
