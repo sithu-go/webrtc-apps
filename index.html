@@ -5,6 +5,25 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
+    <style>
+        .custom-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            background-color: #4CAF50;
+            /* Green background color */
+            color: #fff;
+            /* White text color */
+            font-size: 18px;
+            /* Larger text size */
+            border-radius: 5px;
+            text-align: center;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+        }
+    </style>
 </head>
 
 <body>
@@ -30,6 +49,15 @@
     <form id="message-box">
         <input type="text" name="message" id="message">
         <button type="button" id="msgSendBtn" onclick="sendMessage()">Send</button>
+
+        <button type="button" id="startVoiceBtn" onclick="startVoice()">Start Voice</button>
+        <button type="button" id="stopVoiceBtn" onclick="stopVoice()">Stop Voice</button>
+
+        <br/>
+        <video id="localVideo" autoplay controls="false" width="500" height="350"></video>
+        <video id="remoteVideo" autoplay controls="false" width="500" height="350"></video>
+
+
     </form>
 </body>
 <script>
@@ -52,149 +80,141 @@
     // Append the new message to the message list
     const messageList = document.getElementById("message-list");
 
-    let offerDesc = void 0
-    let answerDesc = void 0
+    // videos
+    const localVideo = document.getElementById("localVideo");
+    const remoteVideo = document.getElementById("remoteVideo")
 
-    rc = void 1
-    dc = void 2
+    let userStream;
 
-    function start(params) {
-        rc = new RTCPeerConnection()
+    // navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true }, video: true }).then(stream => {
+    //     localVideo.srcObject = stream;
 
-        dc = rc.createDataChannel("channel")
 
-        dc.onmessage = e => {
-            console.log("Just got a message " + e.data)
+    // })
 
-            const messageElement = document.createElement("div");
-            messageElement.textContent = e.data;
+    const peer = new RTCPeerConnection();
 
-            messageList.appendChild(messageElement);
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true }, video: true }).then(stream => {
+        localVideo.srcObject = stream;
+
+        userStream = stream;
+
+        // stream.getTracks().forEach((track) => {
+        //     peer.addTrack(track, stream)
+        // })
+    })
+
+    function callPeer() {
+        // navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true }, video: true }).then(stream => {
+        //     localVideo.srcObject = stream;
+
+        //     userStream = stream;
+
+        //     stream.getTracks().forEach((track) => {
+        //         peer.addTrack(track, stream)
+        //     })
+        // })
+        createPeer();
+
+        userStream.getTracks().forEach((track) => {
+            peer.addTrack(track, userStream)
+        })
+    }
+
+
+    function createPeer(params) {
+        peer.onnegotiationneeded = handleNegotiationNeededEvent;
+        peer.onicecandidate = handleICECandidateEvent
+        peer.ontrack = handleTrackEvent
+
+        peer.onconnectionstatechange = (e) => {
+            if (peer.connectionState == "connected") {
+                connectBox.hidden = true
+                messageBox.hidden = false
+            }
         }
+    }
 
-        dc.onopen = e => {
-            console.log("Connection opened!")
-            connectBox.hidden = true
-            messageBox.hidden = false
-        }
-
-        rc.onicecandidate = e => {
-            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(rc.localDescription))
-
-            startBox.hidden = true
-            connectBox.hidden = false
-
-            offerDescription.textContent = JSON.stringify(rc.localDescription)
+    function handleNegotiationNeededEvent() {
+        peer.createOffer().then(offer => {
+            return peer.setLocalDescription(offer);
+        }).then(() => {
+            console.log(peer.localDescription, "SS");
+            // offerDescription.textContent = JSON.stringify(peer.localDescription)
 
             connectBtn.textContent = "Join"
-        }
-
-        rc.createOffer().then(o => rc.setLocalDescription(o)).then(a => console.log("set successfully!"))
+        }).catch(e => console.log(e));
     }
 
-    function connect() {
-
-        // Foe perr 1
-        if (connectBtn.textContent == "Join") {
-            answerDesc = JSON.parse(offerTextArea.value)
-
-            rc.setRemoteDescription(answerDesc)
-            return
-        }
-
-        // For Peer2
-        offerDesc = JSON.parse(offerTextArea.value)
-        console.log(offerDesc);
-
-        rc = new RTCPeerConnection()
-        rc.onicecandidate = e => {
-            console.log("New Ice Candidate! reprinting SDP" + JSON.stringify(rc.localDescription))
-            offerDescription.textContent = JSON.stringify(rc.localDescription)
-        }
-
-
-        rc.ondatachannel = e => {
-            dc = e.channel;
-
-            rc.dc = e.channel;
-            rc.dc.onmessage = e => {
-                console.log("new message from client! " + e.data)
-
-                const messageElement = document.createElement("div");
-                messageElement.textContent = e.data;
-
-                messageList.appendChild(messageElement);
-            }
-            rc.dc.onopen = e => console.log("Connection OPENED!!!!!")
-
-            connectBox.hidden = true
-            messageBox.hidden = false
-        }
-
-        rc.setRemoteDescription(offerDesc).then(a => console.log("offer set!"))
-
-        rc.createAnswer().then(a => rc.setLocalDescription(a)).then(a => console.log("answer created!"))
-
+    function handleICECandidateEvent(e) {
+        offerDescription.textContent = JSON.stringify(peer.localDescription)
     }
 
-    function sendMessage() {
+    function handleTrackEvent(e) {
+        // connectBox.hidden = true
+        // messageBox.hidden = false
+        remoteVideo.srcObject = e.streams[0];
+    }
 
-        const message = messageInput.value
-
-        if (message == "" || !message) {
-            return
-        }
-        if (rc && dc) {
-            dc.send(message)
-        }
-
-        // Create a new message element
-        const messageElement = document.createElement("div");
-        messageElement.textContent = message;
-
-        messageList.appendChild(messageElement);
-
-        messageInput.value = null
-
+    function handleReceiveCall() {
+        createPeer()
+        const desc = new RTCSessionDescription(JSON.parse(offerTextArea.value))
+        peer.setRemoteDescription(desc).then(() => {
+            userStream.getTracks().forEach(track => {
+                peer.addTrack(track, userStream)
+            })
+        }).then(() => {
+            return peer.createAnswer();
+        }).then(answer => {
+            return peer.setLocalDescription(answer);
+        }).then(() => {
+            console.log("answer created!")
+            offerDescription.textContent = JSON.stringify(peer.localDescription)
+        })
     }
 
     initializeUI()
-    listneEvents()
+    listenEvents()
+
     function initializeUI() {
-        startBox.hidden = false
         connectBox.hidden = true
         messageBox.hidden = true
     }
 
-    function listneEvents() {
+    function listenEvents() {
         startBtn.addEventListener("click", () => {
-            start()
+            startBox.hidden = true
+            connectBox.hidden = false
+
+            callPeer()
         })
 
         joinBtn.addEventListener("click", () => {
             startBox.hidden = true
             connectBox.hidden = false
-            messageBox.hidden = true
         })
 
         connectBtn.addEventListener("click", () => {
-            connect()
-            // connectBox.hidden = false
-            // messageBox.hidden = tru
-
-        })
-
-        document.getElementById("message-box").addEventListener("keydown", function (e) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                sendMessage(); // Call the function to handle sending messages
+            if (connectBtn.textContent === "Join") {
+                handleAnswer()
+            } else {
+                handleReceiveCall()
             }
-        });
+        })
+    }
+
+    function handleAnswer() {
+        const desc = new RTCSessionDescription(JSON.parse(offerTextArea.value))
+        peer.setRemoteDescription(desc).catch(e => console.log(e));
+    }
+
+    function handleNewIceCandidateMsg() {
+        const candidate = new RTCIceCandidate(JSON.parse(offerTextArea.value));
+        peer.addIceCandidate(candidate).catch(e => console.log(e));
     }
 
     // Function to copy the offer description
     function copyOfferDescription() {
-
         // Create a temporary input element
         var tempInput = document.createElement("input");
         tempInput.value = offerDescription.textContent;
@@ -210,8 +230,20 @@
         document.body.removeChild(tempInput);
 
         // You can add additional logic or feedback as needed
-        alert("Offer description copied!");
+        // Create a div for displaying a message
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "custom-modal"
+        messageDiv.textContent = "Offer description copied!";
+
+        // Append the message div to the document body
+        document.body.appendChild(messageDiv);
+
+        // Set a timeout to remove the message div after 2 seconds
+        setTimeout(function () {
+            document.body.removeChild(messageDiv);
+        }, 2000);
     }
+
 </script>
 
 </html>
