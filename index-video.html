@@ -44,8 +44,6 @@
         <span id="offer-description"></span>
     </div>
 
-    <div id="message-list"></div>
-
     <form id="message-box">
         <input type="text" name="message" id="message">
         <button type="button" id="msgSendBtn" onclick="sendMessage()">Send</button>
@@ -54,11 +52,17 @@
         <button type="button" id="stopVoiceBtn" onclick="stopVoice()">Stop Voice</button>
 
         <br/>
-        <video id="localVideo" autoplay controls="false" width="500" height="350"></video>
-        <video id="remoteVideo" autoplay controls="false" width="500" height="350"></video>
+
+        <div style="margin-top: 20px">
+            <video id="localVideo" autoplay controls="false" width="500" height="350"></video>
+            <video id="remoteVideo" autoplay controls="false" width="500" height="350"></video>
+        </div>
 
 
     </form>
+
+    <div id="message-list" style="margin-top: 20px;"></div>
+
 </body>
 <script>
     const startBox = document.getElementById("start-box")
@@ -117,6 +121,18 @@
         userStream.getTracks().forEach((track) => {
             peer.addTrack(track, userStream)
         })
+
+        // dc part in offer
+        const dc = peer.createDataChannel("channel")
+        peer.dc = dc
+
+        dc.onmessage = (e) => handleMessageOnDC(e)
+        dc.onopen = e => {
+            console.log("Message channel is opened!")
+        }
+
+        // dc end
+
         createPeer();
     }
 
@@ -156,6 +172,15 @@
     }
 
     function handleReceiveCall() {
+
+        // dc part in answer
+        peer.ondatachannel = e => {
+            peer.dc = e.channel;
+            peer.dc.onmessage = (e) => handleMessageOnDC(e)
+            peer.dc.onopen = e => console.log("Message channel is opened!")
+        
+        }
+
         createPeer()
         const desc = new RTCSessionDescription(JSON.parse(offerTextArea.value))
         peer.setRemoteDescription(desc).then(() => {
@@ -201,6 +226,13 @@
                 handleReceiveCall()
             }
         })
+
+        messageInput.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                sendMessage(); // Call the function to handle sending messages
+            }
+        });
     }
 
     function handleAnswer() {
@@ -242,6 +274,34 @@
         setTimeout(function () {
             document.body.removeChild(messageDiv);
         }, 2000);
+    }
+
+    function sendMessage() {
+
+        const message = messageInput.value
+
+        if (message == "" || !message) {
+            return
+        }
+        peer.dc.send(message)
+
+        // Create a new message element
+        const messageElement = document.createElement("div");
+        messageElement.textContent = message;
+
+        messageList.appendChild(messageElement);
+
+        messageInput.value = null
+
+    }
+
+
+    function handleMessageOnDC(e) {
+        const messageElement = document.createElement("div");
+        messageElement.textContent = e.data;
+
+        messageList.appendChild(messageElement);
+
     }
 
 </script>
